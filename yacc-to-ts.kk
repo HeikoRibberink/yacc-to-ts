@@ -12,7 +12,6 @@ import std/os/env
 import std/os/file
 import std/os/path
 import std/text/parse
-import indexed
 import parser
 
 val usage = "Yacc to tree-sitter converter\nVersion 1.0.0\nUsage:\n  ./yacc-to-ts <input-file> <output-file>"
@@ -38,10 +37,10 @@ fun trim-between(text, left, right)
   // Now split is a sequence of code, comment, code, comment, ...
   // Therefore, we remove every second element of split, and join it into a
   // single string
-  with index-in(split)
+  var i := -1
   split
   .filter fn(_)
-    with i <- loop-increment
+    i := i + 1
     is-even(i)
   .join
 

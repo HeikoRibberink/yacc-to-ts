@@ -19,4 +19,4 @@ run: $(ex)
 	./$< $(in)
 
 %: %.kk $(srcs)
-	koka --include=../aoc24/lib -o $@ $<
+	koka -o $@ $<
