@@ -15,7 +15,7 @@ import std/text/parse
 import indexed
 import parser
 
-val usage = "Yacc to tree-sitter converter\nVersion 1.0.0\nUsage:\n  yacc-to-ts <input-file> <output-file>"
+val usage = "Yacc to tree-sitter converter\nVersion 1.0.0\nUsage:\n  ./yacc-to-ts <input-file> <output-file>"
 
 val left-comment = "/*"
 val right-comment = "*/"
