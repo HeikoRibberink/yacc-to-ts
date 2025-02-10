@@ -1,25 +1,22 @@
-koka-dir = /home/heiko/Documents/code/koka
-
-in = $(koka-dir)/koka/doc/spec/grammar/parser.y ./grammar.js
 ex = yacc-to-ts
 srcs != find -iname "*.kk"
-flags =
-include = $(koka-dir)/aoc24/lib/
-
-
-%: %.kk $(srcs)
-	koka --include=$(include) -o $@ $<
+in = #Input files
 
 .PHONY: watch
 watch:
 	find -iname "*.kk" | entr make run
 
-.PHONY: input
-input:
-	cat $(in)
+.PHONY: build
+build: $(ex)
+
+.PHONY: clean
+clean:
+	rm $(ex)
 
 .PHONY: run
 run: $(ex)
 	chmod +x ./$<
 	./$< $(in)
 
+%: %.kk $(srcs)
+	koka --include=../aoc24/lib -o $@ $<
