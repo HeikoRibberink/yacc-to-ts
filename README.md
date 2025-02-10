@@ -6,7 +6,7 @@ Written in [Koka](https://github.com/koka-lang/koka) v3.1.2 by [Heiko Ribberink]
 
 # Usage
 ```sh
-yacc-to-ts <input-file> <output-file>
+./yacc-to-ts <input-file> <output-file>
 ```
 
 # Note
