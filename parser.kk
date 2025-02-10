@@ -62,8 +62,11 @@ pub fun variant/show(v : variant) : string
   v.tokens.show
 
 // Convert a `variant` to a treesitter representation.
-pub fun variant/treesitter(v : variant) : string
-  "seq(" ++ v.tokens.map(treesitter).join-append(", ") ++ ")"
+pub fun variant/treesitter(variant : variant) : string
+  match variant.tokens
+    [t] -> t.treesitter
+    ts -> 
+      "seq(" ++ ts.map(treesitter).join-append(", ") ++ ")"
     
 
 // A production rule.
@@ -94,11 +97,16 @@ pub fun production/treesitter(p : production) : string
     else 
       ("", "")
   // The final tree-sitter rule.
-  p.name ++ ": ($) => " ++ optional-start ++ "choice(\n" 
-  ++ variants.map(treesitter).map fn(s)
-    "  " ++ s
-  .join-append(",\n") 
-  ++ ")" ++ optional-end
+  val body = 
+    match variants
+      [v] -> v.treesitter
+      v ->
+        "choice(\n" 
+        ++ v.map(treesitter).map fn(s)
+          "  " ++ s
+        .join-append(",\n") 
+        ++ ")"
+  p.name ++ ": ($) => " ++ optional-start ++ body ++ optional-end
 
 // Convert a `list<production>` to a treesitter representation.
 // Use this to generate a full list of grammar rules from a successfull parse.

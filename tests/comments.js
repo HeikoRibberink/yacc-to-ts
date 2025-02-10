@@ -1,8 +1,8 @@
 this: ($) => choice(
   seq($.is, $.a, $.TEST, ),
-  seq($.ABOUT, ),
+  $.ABOUT,
 ),
 but: ($) => choice(
   seq($.this, $.is, ),
-  seq($.not, ),
+  $.not,
 ),

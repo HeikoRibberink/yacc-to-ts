@@ -1,7 +1,5 @@
 this_is: ($) => choice(
-  seq($.and_SOMETHING, ),
-  seq($.or, ),
+  $.and_SOMETHING,
+  $.or,
 ),
-another: ($) => choice(
-  seq($.rule, ),
-),
+another: ($) => $.rule,
