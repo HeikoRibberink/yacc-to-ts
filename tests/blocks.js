@@ -3,3 +3,7 @@ this_is: ($) => choice(
   $.or,
 ),
 another: ($) => $.rule,
+but_there: ($) => choice(
+  seq($.is, $.another, ),
+  seq($.AND, $.code, ),
+),

@@ -1,6 +1,7 @@
 ex = yacc-to-ts
 srcs != find -iname "*.kk"
 in = #Input files
+flags = --stack=1M
 
 .PHONY: watch
 watch:
@@ -19,4 +20,4 @@ run: $(ex)
 	./$< $(in)
 
 %: %.kk $(srcs)
-	koka -o $@ $<
+	koka $(flags) -o $@ $<
