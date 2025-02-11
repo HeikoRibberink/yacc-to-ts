@@ -1,7 +1,7 @@
 ex = yacc-to-ts
 srcs != find -iname "*.kk"
 in = #Input files
-flags = --stack=1M
+flags = 
 TEST_FILES != find tests/ -iname "*.js"
 
 .PHONY: watch
