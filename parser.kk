@@ -10,6 +10,7 @@
 module parser
 
 import std/text/parse
+import std/core/undiv
 
 /* Additional parser combinators */
 
@@ -25,6 +26,11 @@ fun many1-seperated(sep, p)
       sep()
       p()
   )
+
+// A character in a C identifier.
+fun c-id-char()
+  chars-are("c-id-char") fn(c)
+    is-alpha-num(c) || c == '_'
 
 /* Helper functions */
 
@@ -119,16 +125,7 @@ pub fun productions/treesitter(ps : list<production>) : string
 // This is defined to be the same as a C identifier. For simplicity, we also
 // allow starting with numbers here.
 fun id()
-  Name(
-    string(
-      many1
-        choose([
-          alpha-num,
-          fn()
-            one-of("_")
-        ])
-    )
-  )
+  Name(string(c-id-char()))
     
   
 // A raw string token.
@@ -142,14 +139,28 @@ fun rawstring()
 fun token()
   choose([id,rawstring])
 
+fun code(slice : sslice, balance : int) : (sslice, bool)
+  match slice.next
+    Just((c, rest)) -> match c
+      '{' -> code(pretend-decreasing(rest), balance + 1)
+      '}' -> code(pretend-decreasing(rest), balance - 1)
+      _ -> 
+        if balance != 0 then 
+          code(pretend-decreasing(rest), balance) 
+        else 
+          (rest, True)
+    Nothing -> (slice, balance == 0)
+          
+      
 // A single block of semantic code.
-// We assume blocks are not nested for simplicity.
-fun code-block() : _ ()
+// Just like in Yacc, as long as the braces are balanced, a code block may
+// contain an arbitrary string.
+fun code-block()
   char('{')
-  many
-    none-of("{}")
-  char('}')
-  ()
+  satisfy-fail("code block") fn(slice)
+    match code(slice, balance=1)
+      (slice', True) -> Just(((), slice'))
+      (slice', False) -> Just(((), slice'))
 
 // The parts in a variant.
 // This is necessary because semantic code blocks may be placed anywhere inside of a
@@ -169,9 +180,6 @@ fun variant-part() : _ maybe<token>
 fun variant() : _ variant
   val maybe-variants = many-seperated(whitespace, variant-part)
   val result = Variant(maybe-variants.concat-maybe)
-  optional(())
-    whitespace0()
-    code-block()
   result
 
 // The right side of a production rule.

@@ -44,25 +44,30 @@ fun trim-between(text, left, right)
     is-even(i)
   .join
 
-fun trim-line-comments(text)
+fun trim-after(text, sep)
   // Split the text by lines, and remove everything after and including the
   // line comment token, then join the text back together.
   text
   .lines
   .map fn(l : string)
-    val s : list<string> = l.split(string(['/', '/']))
+    val s : list<string> = l.split(sep)
     s[0].unjust
   .join("\n")
   
-// Trim `grammar` by removing all comments and semantic code blocks
+// Trim `grammar` by removing all comments, semantic code blocks and directives.
 fun trim-grammar(grammar)
   grammar
   .trim-between(left-comment, right-comment)
-  .trim-line-comments
+  .trim-after(string(['/', '/']))
+  .trim-after("%")
 
+// Parse the grammar
 fun parse-rules(grammar)
   match parse(grammar.slice, prods)
-    ParseOk(res, _tail) ->
+    ParseOk(res, tail) ->
+      val tail-str = string(tail)
+      if tail-str.is-notempty then
+        println("Parsing finished with some input left:\n" ++ tail-str)
       Just(res)
     ParseError(msg, tail) ->
       println("Parsing failed with `" ++ msg ++ "`, with the following left to parse: \n\n" ++ string(tail))
@@ -79,7 +84,6 @@ fun main()
   )
   val in-path = args[0].unjust.path
   val out-path = args[1].unjust.path
-  
   // Read the file.
   val in-file = in-path.read-text-file
   // Trim all unrelated parts.
