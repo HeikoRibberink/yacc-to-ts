@@ -139,17 +139,15 @@ fun rawstring()
 fun token()
   choose([id,rawstring])
 
-fun code(slice : sslice, balance : int) : (sslice, bool)
-  match slice.next
+fun code(slice : sslice, balance : int, acc) : (sslice, bool, list<char>)
+  if balance == 0 then
+    (slice, True, acc.reverse)
+  else match slice.next
     Just((c, rest)) -> match c
-      '{' -> code(pretend-decreasing(rest), balance + 1)
-      '}' -> code(pretend-decreasing(rest), balance - 1)
-      _ -> 
-        if balance != 0 then 
-          code(pretend-decreasing(rest), balance) 
-        else 
-          (rest, True)
-    Nothing -> (slice, balance == 0)
+      '{' -> code(pretend-decreasing(rest), balance + 1, Cons(c, acc))
+      '}' -> code(pretend-decreasing(rest), balance - 1, Cons(c, acc))
+      c -> code(pretend-decreasing(rest), balance, Cons(c, acc)) 
+    Nothing -> (slice, balance == 0, acc.reverse)
           
       
 // A single block of semantic code.
@@ -158,9 +156,9 @@ fun code(slice : sslice, balance : int) : (sslice, bool)
 fun code-block()
   char('{')
   satisfy-fail("code block") fn(slice)
-    match code(slice, balance=1)
-      (slice', True) -> Just(((), slice'))
-      (slice', False) -> Just(((), slice'))
+    match code(slice, 1, ['{'])
+      (slice', True, str) -> Just((str, slice'))
+      _ -> Nothing
 
 // The parts in a variant.
 // This is necessary because semantic code blocks may be placed anywhere inside of a
