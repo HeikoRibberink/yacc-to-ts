@@ -11,6 +11,7 @@ module parser
 
 import std/text/parse
 import std/core/undiv
+import tree-sitter
 
 /* Additional parser combinators */
 
@@ -33,10 +34,6 @@ fun c-id-char()
     is-alpha-num(c) || c == '_'
 
 /* Helper functions */
-
-// Appends `sep` to each string in `xs` and joins them into a single string.
-fun join-append(xs : list<string>, sep : string) : string
-  xs.foldl("") fn(s, x) s ++ x ++ sep
 
 /* Parse tree types and functions */
 
@@ -72,7 +69,7 @@ pub fun variant/treesitter(variant : variant) : string
   match variant.tokens
     [t] -> t.treesitter
     ts -> 
-      "seq(" ++ ts.map(treesitter).join-append(", ") ++ ")"
+      "seq(" ++ ts.map(treesitter).join-end(", ") ++ ")"
     
 
 // A production rule.
@@ -110,14 +107,14 @@ pub fun production/treesitter(p : production) : string
         "choice(\n" 
         ++ v.map(treesitter).map fn(s)
           "  " ++ s
-        .join-append(",\n") 
+        .join-end(",\n") 
         ++ ")"
   p.name ++ ": ($) => " ++ optional-start ++ body ++ optional-end
 
 // Convert a `list<production>` to a treesitter representation.
 // Use this to generate a full list of grammar rules from a successfull parse.
 pub fun productions/treesitter(ps : list<production>) : string
-  ps.map(treesitter).join-append(",\n")
+  ps.map(treesitter).join-end(",\n")
 
 /* Parser rules */
 
