@@ -1,7 +1,1 @@
-a0: ($) => optional($.a1),
-a1: ($) => choice(
-  seq($.a1, ",", $.a, ),
-  $.a,
-),
-
-a1: ($) => seq($.a, repeat(seq(",", $.a)))
+a1: ($) => seq(choice(seq($.a,),seq($.b,),),repeat(seq(',',$.a,)),),

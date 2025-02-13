@@ -8,7 +8,7 @@ pub struct arguments
   options : options
 
 pub struct options
-  remove-left-recursion : bool
+  improve : bool
 
 pub fun arguments/show(Arguments(input, output, _options) : arguments) : string
   "Arguments" ++ show((input, output))
@@ -23,7 +23,7 @@ pub fun help() : string
   usage()
   ++ "Convert a Yacc grammar in INFILE to a tree-sitter grammar in OUTFILE\n"
   ++ "\nOptions:\n"
-  ++ "  -l\t\tEliminate simple left recursion.\n"
+  ++ "  -n\t\tDo not improve the resulting grammar to a more ideomatic version.\n"
 
 // Show usage on exception
 pub fun usage-on-exn(action : () -> <exn,console|e> a) : <exn,console|e> a
@@ -47,10 +47,10 @@ pub fun parse(args: list<string>) : exn arguments
   // Filter out all the arguments starting with `-`
   .filter-map(is-flag)
   // Then update the options accordingly
-  .foldl(Options(False)) fn(option, arg)
+  .foldl(Options(True)) fn(option, arg)
     arg.foldl(option) fn(opt, c)
       match c
-        'l' -> opt(remove-left-recursion = True)
+        'n' -> opt(improve = True)
         c -> throw("Invalid flag `" ++ string(c) ++ "`", ExnArgs)
   // Now we filter out all the boolean flags to keep just the paths.
   val paths = args

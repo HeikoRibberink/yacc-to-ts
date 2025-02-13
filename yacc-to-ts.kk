@@ -13,6 +13,7 @@ import std/os/file
 import std/os/path
 import std/text/parse
 import parser
+import tree-sitter
 import cli
 
 val usage = "Yacc to tree-sitter converter\nVersion 1.0.1\nUsage:\n  ./yacc-to-ts <input-file> <output-file>"
@@ -86,6 +87,10 @@ fun main()
   val trimmed = grammar.trim-grammar
   // Parse the file.
   val parsed = trimmed.parse-rules.unjust
+  val improved = if args.options.improve then
+    parsed.optimize
+  else
+    parsed
+  val textrules = improved.show()
   // Convert and write the tree-sitter grammar.
-  val treesitter = parsed.treesitter
-  args.output.write-text-file(treesitter)
+  args.output.write-text-file(textrules)

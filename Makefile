@@ -1,7 +1,7 @@
 ex = yacc-to-ts
 srcs != find -iname "*.kk"
 in = #Input files
-flags = --include=/home/heiko/Documents/code/koka/aoc24/help/
+flags =
 TEST_FILES != find tests/ -iname "*.js"
 
 .PHONY: watch

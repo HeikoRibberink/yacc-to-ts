@@ -37,93 +37,11 @@ fun c-id-char()
 
 /* Parse tree types and functions */
 
-// A token in the right side of a production rule.
-pub value type token
-  // Raw token, delimited by single quotes.
-  Raw(s : string)
-  // A named (non-)terminal.
-  Name(name : string)
-
-// Show a `token`.
-pub fun token/show(t : token) : string
-  match t
-    Raw(s) -> "Raw(" ++ s ++ ")"
-    Name(n) -> "Name(" ++ n ++ ")"
-
-// Convert a `token` to a treesitter representation.
-pub fun token/treesitter(t : token) : string
-  match t
-    Raw(s) -> "\"" ++ s ++ "\""
-    Name(n) -> "$." ++ n
-
-// A variant of a production rule.
-pub value struct variant
-  tokens : list<token>
-
-// Show a `variant`.
-pub fun variant/show(v : variant) : string
-  v.tokens.show
-
-// Convert a `variant` to a treesitter representation.
-pub fun variant/treesitter(variant : variant) : string
-  match variant.tokens
-    [t] -> t.treesitter
-    ts -> 
-      "seq(" ++ ts.map(treesitter).join-end(", ") ++ ")"
-    
-
-// A production rule.
-pub value struct production
-  name : string
-  variants : list<variant>
-
-// Show a `production`.
-pub fun production/show(p : production) : string
-  "Production(" ++ p.name ++ ", " ++ p.variants.show ++ ")"
-
-// Convert a `production` to a treesitter representation.
-pub fun production/treesitter(p : production) : string
-  // Whether there is an empty variant in the production.
-  var has-empty : bool := False
-  // The non-empty variants.
-  val variants = 
-    p.variants.filter fn(v)
-      if v.tokens.is-empty then 
-        has-empty := True
-        False
-      else
-        True
-  // Used to make the rule optional when necessary
-  val (optional-start, optional-end) = 
-    if has-empty then 
-      ("optional(", ")") 
-    else 
-      ("", "")
-  // The final tree-sitter rule.
-  val body = 
-    match variants
-      [v] -> v.treesitter
-      v ->
-        "choice(\n" 
-        ++ v.map(treesitter).map fn(s)
-          "  " ++ s
-        .join-end(",\n") 
-        ++ ")"
-  p.name ++ ": ($) => " ++ optional-start ++ body ++ optional-end
-
-// Convert a `list<production>` to a treesitter representation.
-// Use this to generate a full list of grammar rules from a successfull parse.
-pub fun productions/treesitter(ps : list<production>) : string
-  ps.map(treesitter).join-end(",\n")
-
-/* Parser rules */
-
 // A single token identifier.
 // This is defined to be the same as a C identifier. For simplicity, we also
 // allow starting with numbers here.
 fun id()
   Name(string(c-id-char()))
-    
   
 // A raw string token.
 fun rawstring()
@@ -172,13 +90,13 @@ fun variant-part() : _ maybe<token>
   ])
 
 // A variant of a production rule.
-fun variant() : _ variant
+fun variant() : _ list<token>
   val maybe-variants = many-seperated(whitespace, variant-part)
-  val result = Variant(maybe-variants.concat-maybe)
+  val result = maybe-variants.concat-maybe
   result
 
 // The right side of a production rule.
-fun variants() : _ list<variant>
+fun variants() : _ list<list<token>>
   fun sep()
     whitespace0()
     char('|')
@@ -186,18 +104,18 @@ fun variants() : _ list<variant>
   many1-seperated(sep, variant)
 
 // A single production rule.
-fun prod() : _ production
+fun prod() : _ rule
   val Name(id) = id()
   whitespace0()
   char(':')
   whitespace0()
-  val vs = variants()
+  val variants = variants()
   whitespace0()
   char(';')
-  Production(id, vs)
+  Rule(id, Cfg(variants))
 
 // Multiple production rules.
-pub fun prods() : _ list<production>
+pub fun prods() : _ list<rule>
   whitespace0()
   many
     val p = prod()
