@@ -1,1 +1,1 @@
-a1: ($) => seq(choice(seq($.a,),seq($.b,),),repeat(seq(',',$.a,)),),
+a1: ($) => seq(choice($.a,$.b,),repeat(seq(',',$.a,)),),

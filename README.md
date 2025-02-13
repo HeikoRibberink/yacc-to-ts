@@ -9,9 +9,28 @@ Written in [Koka](https://github.com/koka-lang/koka) v3.1.2 by [Heiko Ribberink]
 ./yacc-to-ts <input-file> <output-file>
 ```
 
+# Features
+- Removes comments, directives and semantic code blocks. See Limitations for more info.
+- Transforms simple left recursive rules to `repeat`:
+```yacc
+%%
+a1 : a1 ',' a
+   | a
+   | b
+   ;
+%%
+```
+becomes
+```js
+a1: ($) => seq(choice($.a,$.b,),repeat(seq(',',$.a,)),),
+```
+- Makes rules with an empty production `optional`.
+- Simplifies empty or single sequences and choices, flattens nested sequences and automatically applies trivial `repeat1`'s.
+
 # Limitations
 - This tool does not generate a full tree-sitter `grammar.js` file, only the rules. You must perform some work yourself to complete the grammar, such as filling in the grammar name. See [getting started](https://tree-sitter.github.io/tree-sitter/creating-parsers/1-getting-started.html) in the tree-sitter manual.
 - Directives must be placed at the end of a line. Any `%` and all the characters following it in the same line are removed before parsing. A consequence is that, for example any `%prec` are ignored.
+- The output is not formatted. You must do this with a formatter such as Prettier yourself.
 
 # Building from source
 1. Install [the most recent Koka compiler](https://koka-lang.github.io/koka/doc/index.html#install), or build it from source.

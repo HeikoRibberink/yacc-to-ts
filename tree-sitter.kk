@@ -71,7 +71,7 @@ pub fun node/show(node : node) : div string
     Repeat1(node) -> "repeat1(" ++ node.show ++ ")"
     Choice(nodes) -> "choice(" ++ nodes.map(show).join-end(",") ++ ")"
 
-pub fun node/(==)(n1 : node, n2 : node) : _ bool
+pub fun node/(==)(n1 : node, n2 : node) : div bool
   match (n1, n2)
     (Token(a), Token(b)) -> a == b
     (Seq(a), Seq(b)) -> list-eq(a, b)
@@ -79,6 +79,7 @@ pub fun node/(==)(n1 : node, n2 : node) : _ bool
     (Repeat(a), Repeat(b)) -> a == b
     (Repeat1(a), Repeat1(b)) -> a == b
     (Choice(a), Choice(b)) -> list-eq(a, b)
+    _ -> False
 
 pub fun nodes/is-empty(nodes : list<node>) : div bool
   match nodes
@@ -99,7 +100,7 @@ pub fun node/is-empty(node : node) : div bool
 
 // Optimize a rule
 pub fun optimize(rules : list<rule>) : _ list<rule>
-  val opts = [transform-leftrec, ts/transform-all]
+  val opts = [transform-leftrec, ts/transform-all, ts/transform-all]
   rules.map fn(rule)
     opts.foldl(rule) fn(rule', opt)
       with final ctl exit(_) 
@@ -129,7 +130,7 @@ pub fun cfg/transform-leftrec(name : string, body : body) : exit<()> body
 
 pub fun ts/transform-all(name : string, body : body) : _ body
   val root = body.treesitter
-  val opts = [transform-opt, elim-empty, elim-single-choice, elim-single-seq, elim-empty]
+  val opts = [transform-opt, elim-empty, elim-single-choice, elim-single-seq, elim-empty, flatten-seqseq, transform-repeat1]
   fun apply-opts(node)
     opts.foldl(node) fn(node', opt)
       opt(node')
@@ -175,4 +176,23 @@ fun node/elim-single-seq(node : node) : node
 fun node/elim-empty(node : node) : div node
   match node
     Seq(nodes) -> Seq(nodes.filter fn(n) {!n.is-empty})
+    _ -> node
+
+fun node/flatten-seqseq(node : node) : div node
+  match node
+    Seq(seq) ->
+      seq.map fn(inner-node)
+        match inner-node
+          Seq(inner-seq) -> inner-seq
+          _ -> [inner-node]
+      .concat.Seq
+    _ -> node
+
+fun node/transform-repeat1(node : node) : div node
+  match node
+    Seq(Cons(a, Cons(Repeat(b), Nil))) ->
+      if a == b then
+        Repeat1(a)
+      else
+        node
     _ -> node
