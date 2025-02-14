@@ -1,3 +1,13 @@
+/*------------------------------------------------------------------------------
+  Copyright 2025, Heiko Ribberink.
+
+  This is free software; you can redistribute it and/or modify it under the
+  terms of the MIT License. A copy of the License can be found in the LICENSE
+  file at the root of this distribution.
+------------------------------------------------------------------------------*/
+
+/* Module containing early-exit constructs. */
+
 module exit
 
 pub effect exit<a>

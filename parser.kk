@@ -54,6 +54,14 @@ fun rawstring()
 fun token()
   choose([id,rawstring])
 
+// Removes characters from the front of `slice` until the braces are balanced,
+// or until there are no more characters left, and returns a 3-tuple of:
+// 1. The `sslice` without the block of code.
+// 2. If the resulting `sslice` is empty, whether the final result was.
+// balanced
+// 3. The list of characters removed from the slice.
+// 
+// Useful for matching blocks of code.
 fun code(slice : sslice, balance : int, acc) : (sslice, bool, list<char>)
   if balance == 0 then
     (slice, True, acc.reverse)
