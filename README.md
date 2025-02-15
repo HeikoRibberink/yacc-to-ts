@@ -11,25 +11,25 @@ Written in [Koka](https://github.com/koka-lang/koka) v3.1.2 by [Heiko Ribberink]
 
 # Features
 - Removes comments, directives and semantic code blocks. See Limitations for more info.
-- Transforms simple left recursive rules to `repeat`:
+- Transforms direct right and left recursive rules to `repeat`:
 ```yacc
 %%
 a1 : a1 ',' a
-   | a
-   | b
+   | a b
+   | b a
    ;
 %%
 ```
 becomes
 ```js
-a1: ($) => seq(choice($.a,$.b,),repeat(seq(',',$.a,)),),
+a1: ($) => seq(choice(seq($.a, $.b), seq($.b, $.a)), repeat(seq(",", $.a))),
 ```
 - Makes rules with an empty production `optional`.
 - Simplifies empty or single sequences and choices, flattens nested sequences and automatically applies trivial `repeat1`'s.
 
 # Limitations
 - This tool does not generate a full tree-sitter `grammar.js` file, only the rules. You must perform some work yourself to complete the grammar, such as filling in the grammar name. See [getting started](https://tree-sitter.github.io/tree-sitter/creating-parsers/1-getting-started.html) in the tree-sitter manual.
-- Directives must be placed at the end of a line. Any `%` and all the characters following it in the same line are removed before parsing. A consequence is that, for example any `%prec` are ignored.
+- Directives must be placed at the end of a line. Any `%` and all the characters following it in the same line are removed before parsing. A consequence is that, for example any precedence directives (`%prec`) are removed and must be added manually to the tree-sitter grammar.
 - The output is not formatted. You must do this with a formatter such as Prettier yourself.
 
 # Building from source
