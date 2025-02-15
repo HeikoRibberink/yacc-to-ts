@@ -11,7 +11,7 @@ Written in [Koka](https://github.com/koka-lang/koka) v3.1.2 by [Heiko Ribberink]
 
 # Features
 - Removes comments, directives and semantic code blocks. See Limitations for more info.
-- Transforms direct right and left recursive rules to `repeat`:
+- Transforms direct right and left recursive rules to `repeat`. E.g.
 ```yacc
 %%
 a1 : a1 ',' a
@@ -24,6 +24,7 @@ becomes
 ```js
 a1: ($) => seq(choice(seq($.a, $.b), seq($.b, $.a)), repeat(seq(",", $.a))),
 ```
+For further examples, see the `tests` folder.
 - Makes rules with an empty production `optional`.
 - Simplifies empty or single sequences and choices, flattens nested sequences and automatically applies trivial `repeat1`'s.
 
