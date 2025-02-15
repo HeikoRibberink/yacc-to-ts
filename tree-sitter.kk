@@ -42,7 +42,8 @@ pub fun rules/show(rules : list<rule>) : div string
 // also for simplified, intermediate representations of either variant.
 pub type body
   Cfg(variants : list<list<token>>)
-  LeftRec(start-variants : list<list<token>>, repeat : list<token>)
+  LeftRec(start-variants : list<list<token>>, repeat-variants : list<list<token>>)
+  RightRec(repeat-variants: list<list<token>>, end-variants: list<list<token>>)
   TS(node : node)
 
 // A terminal or nonterminal.
@@ -87,9 +88,14 @@ pub fun body/treesitter(body : body) : node
     Cfg(variants) ->
       // The right side of a CFG production rule becomes a choice of sequences.
       Choice(variants.map fn(v) {Seq(v.map(Token))})
-    LeftRec(starts, repeat) ->
-      val starts_tokens = starts.map(fn(s) {Seq(s.map(Token))})
-      Seq([Choice(starts_tokens), Repeat(Seq(repeat.map(Token)))])
+    LeftRec(starts, repeats) ->
+      val starts-tokens = starts.map(fn(s) {Seq(s.map(Token))})
+      val repeats-tokens = repeats.map(fn(s) {Seq(s.map(Token))})
+      Seq([Choice(starts-tokens), Repeat(Choice(repeats-tokens))])
+    RightRec(repeats, ends) ->
+      val repeats-tokens = repeats.map(fn(s) {Seq(s.map(Token))})
+      val ends-tokens = ends.map(fn(s) {Seq(s.map(Token))})
+      Seq([Repeat(Choice(repeats-tokens)), Choice(ends-tokens)])
     TS(node) -> node
   
   
@@ -131,7 +137,8 @@ pub fun nodes/is-empty(nodes : list<node>) : div bool
 
 // Optimize a list of rules.
 pub fun optimize(rules : list<rule>) : _ list<rule>
-  val opts = [transform-leftrec, ts/transform-all, ts/transform-all]
+  // The optimizations. Note that we apply the tree-sitter transformations twice.
+  val opts = [transform-leftrec, transform-rightrec, ts/transform-all, ts/transform-all]
   // We optimize rule by rule.
   rules.map fn(rule)
     // Optimize by sequentially applying each optimization.
@@ -144,27 +151,39 @@ pub fun optimize(rules : list<rule>) : _ list<rule>
       new-rule
 
 // Transform a left recursive cfg. 
-pub fun cfg/transform-leftrec(name : string, body : body) : exit<()> body
+pub fun cfg/transform-leftrec(name : string, body : body) : _ body
   // Only Cfg can be transformed; all others are not applicable.
   match body
     Cfg(variants) ->
-      // Keep only the tails of the variants that are tail-recursive.
-      val recs = variants.filter-map fn(v)
+      // Categorize the rules:
+      val categorized = variants.map fn(v)
         match v
-          Cons(first, tail) | first == Name(name) -> Just(tail)
-          _ -> Nothing
-      // Keep only those variants that are not tail-recursive.
-      val nonrecs = variants.filter fn(v)
-        match v
-          Cons(first, _tail) -> first != Name(name)
-          _ -> True
-      // This transformation is currently only applicable for a single left
-      // recursive variant.
-      // TODO: improve this rule by allowing multiple variants in the
-      // repetition, which are then converted to a Repeat(Choice(v1, ..., vN))
-      match recs
-        [repeat] -> LeftRec(nonrecs, repeat)
-        _ -> exit(())
+          // Recursive rules have their self-reference removed, and are put right.
+          Cons(first, tail) | first == Name(name) -> (Nothing, Just(tail))
+          // Non-recursive rules are put left.
+          _ -> (Just(v), Nothing)
+      // Due to the (maybe, maybe)-tuple, we can simply unzip and concat-maybe.
+      val (nonrecs, recs) = categorized.unzip.map(concat-maybe)
+      if is-nil(recs) then exit(())
+      LeftRec(nonrecs, recs)
+    _ -> exit(())
+
+// Transform a right recursive cfg. 
+pub fun cfg/transform-rightrec(name : string, body : body) : _ body
+  // Only Cfg can be transformed; all others are not applicable.
+  match body
+    Cfg(variants) ->
+      // Categorize the rules:
+      val categorized = variants.map fn(v)
+        match v.split(length(v) - 1)
+          // Recursive rules have their self-reference removed, and are put right.
+          (front, Cons(last, Nil)) | last == Name(name) -> (Nothing, Just(front))
+          // Non-recursive rules are put left.
+          _ -> (Just(v), Nothing)
+      // Due to the (maybe, maybe)-tuple, we can simply unzip and concat-maybe.
+      val (nonrecs, recs) = categorized.unzip.map(concat-maybe)
+      if is-nil(recs) then exit(())
+      RightRec(recs, nonrecs)
     _ -> exit(())
 
 /* Tree-sitter node-level optimizations and transformation. */

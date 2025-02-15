@@ -2,7 +2,7 @@ ex = yacc-to-ts
 srcs != find -iname "*.kk"
 in = #Input files
 flags =
-TEST_FILES != find tests/ -iname "*.js"
+TEST_FILES != find tests/ -iname "*.y"
 
 .PHONY: watch
 watch:
@@ -21,7 +21,7 @@ run: $(ex)
 	./$< $(in)
 	
 .PHONY: tests
-tests: $(TEST_FILES)
+tests: $(TEST_FILES:.y=.js)
 # Build rules
 
 %: %.kk $(srcs)
