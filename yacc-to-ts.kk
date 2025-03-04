@@ -89,7 +89,6 @@ fun main()
   val parsed = trimmed.parse-rules.unjust
   val improved = if args.options.improve then
     val opt = parsed.optimize.remove-empties.optimize
-    println(opt.find-empties)
     opt
   else
     parsed
