@@ -22,6 +22,13 @@ fun list-eq(a : list<a>, b : list<a>, ?(==) : (a, a) -> e bool) : e bool
     (Cons(x, xs), Cons(y, ys)) -> (x == y) && list-eq(pretend-decreasing(xs), pretend-decreasing(ys))
     _ -> False
 
+// Returns whether `ex` in `xs`.
+fbip fun contains(xs : list<a>, ex : a, ^?(==) : (a, a) -> bool) : bool
+  match xs
+    Cons(x, _) | ex == x -> True
+    Cons(_, xs) -> xs.contains(ex)
+    _ -> False
+
 // Production rule with an arbitrary body.
 pub value struct rule
   name : string
@@ -133,6 +140,16 @@ pub fun node/is-empty(node : node) : div bool
 pub fun nodes/is-empty(nodes : list<node>) : div bool
   map(nodes, node/is-empty).foldl(True, (&&))
 
+// Whether `node` may match empty.
+pub fun node/matches-empty(node : node) : div bool
+  match node
+    Token -> False
+    Seq(nodes) -> map(nodes, node/matches-empty).foldl(True, (&&))
+    Optional -> True
+    Repeat -> True
+    Repeat1(node) -> node.matches-empty
+    Choice(nodes) -> nodes.find(matches-empty).is-just
+
 /* Rule-level optimizations and transformations. */
 
 // Optimize a list of rules.
@@ -191,7 +208,8 @@ pub fun cfg/transform-rightrec(name : string, body : body) : _ body
 // Recursively apply all transformations to the tree-sitter representation of body.
 pub fun ts/transform-all(name : string, body : body) : _ body
   val root = body.treesitter
-  val opts = [transform-opt, elim-empty, elim-single-choice, elim-single-seq, elim-empty, flatten-seqseq, transform-repeat1]
+  val opts = [transform-opt, elim-empty, elim-single-choice, elim-single-seq, elim-empty, flatten-seqseq, transform-repeat1, elim-opt]
+  // Sequentially apply the optimizations at every node.
   fun apply-opts(node)
     opts.foldl(node) fn(node', opt)
       opt(node')
@@ -258,3 +276,81 @@ fun node/transform-repeat1(node : node) : div node
       else
         node
     _ -> node
+
+fun node/elim-opt(node : node) : div node
+  match node
+    Optional(e) -> if e.matches-empty then
+        e
+      else
+        Optional(e)
+    _ -> node
+    
+
+// Transforms `node` such that it does not match empty. More specifically:
+// Let `n` be an arbitrary node, then
+// 1. `make-nonempty(n)` does not match empty, and
+// 2. if `n` does not match empty, then 
+//      `make-nonempty(n) == n`, 
+//    else 
+//      `n` matches empty, and `Optional(make-nonempty(n)) == n`
+fun node/make-nonempty(node : node) : _ node
+  // Notes:
+  // Let a == b mean that a and b match exactly the same language.
+  // Let n be a node that matches empty.
+  // We wish to define a function f such that:
+  // f(n) does not match empty, and
+  // Optional(f(n)) == n
+  
+  // Let n, n1, ..., nk, ..., nl be arbitrary nodes, and,
+  // Let e, e1, ..., ek, ..., el be arbitrary nodes that match empty, and,
+  // Let m, m1, ..., mk, ..., ml be arbitrary nodes that do not match empty.
+  // We can define f as follows:
+  // 1. f(m) == m
+  // Rule 1 catches all cases except:
+  // 2. f(Seq(e1, e2, ..., ek)) == Seq(f(e1), e2, ..., ek)
+  // 3. f(Optional(n)) == f(n)
+  // 4. f(Repeat(n)) == Repeat1(f(n))
+  // 5. f(Repeat1(e)) == Repeat1(f(e))
+  // 6. f(Choice(n1, ..., nk)) == Choice(f(n1), ..., f(nk))
+  if !node.matches-empty then
+    node // Rule 1
+  else match node
+    // Rule 2; `nodes` must be nonempty, and every element must match empty.
+    Seq(Cons(e, es)) -> Seq(Cons(make-nonempty(e), es))
+    Optional(n) -> make-nonempty(n)
+    Repeat(n) -> Repeat1(make-nonempty(n))
+    Repeat1(e) -> Repeat1(make-nonempty(e))
+    Choice(choices) -> Choice(choices.map(make-nonempty))
+    _ -> throw("This should be impossible due to the previous if statement.")
+
+/* Whole grammar-level optimizations. */
+
+pub fun find-empties(rules : list<rule>) : div list<string>
+  rules.filter-map fn(Rule(name, body))
+    val root = body.treesitter
+    if root.matches-empty then
+      Just(name)
+    else
+      Nothing
+
+pub fun transform-empties(rules : list<rule>) : _ list<rule>
+  // First, find which rules match empty.
+  val prev-empties = find-empties(rules)
+  // Then, we transform every token referencing an empty rule to Optional(token)
+  rules.map fn(Rule(name, body))
+    val root = body.treesitter.make-nonempty
+    val empties-replaced = root.map-bottom-up fn(node)
+      match node
+        tok as Token(Name(refname)) ->
+          if prev-empties.contains(refname) then
+            Optional(Token(Name(refname)))
+          else
+            tok
+        n -> n
+    Rule(name, TS(empties-replaced))
+
+pub fun remove-empties(rules : list<rule>) : _ list<rule>
+  var modified := rules
+  while {modified.find-empties.is-cons}
+    modified := modified.transform-empties
+  modified

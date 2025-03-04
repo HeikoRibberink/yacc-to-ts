@@ -88,7 +88,9 @@ fun main()
   // Parse the file.
   val parsed = trimmed.parse-rules.unjust
   val improved = if args.options.improve then
-    parsed.optimize
+    val opt = parsed.optimize.remove-empties.optimize
+    println(opt.find-empties)
+    opt
   else
     parsed
   val textrules = improved.show()
