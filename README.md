@@ -24,9 +24,12 @@ becomes
 ```js
 a1: ($) => seq(choice(seq($.a, $.b), seq($.b, $.a)), repeat(seq(",", $.a))),
 ```
-For further examples, see the `tests` folder.
-- Makes rules with an empty production `optional`.
+- Correctly handles empty productions:
+    - Transforms rules that match empty into non-empty rules.
+    - Makes usage of any of the previous rules `optional`.
 - Simplifies empty or single sequences and choices, flattens nested sequences and automatically applies trivial `repeat1`'s.
+
+For examples of these improvements, see the `tests` folder.
 
 # Limitations
 - This tool does not generate a full tree-sitter `grammar.js` file, only the rules. You must perform some work yourself to complete the grammar, such as filling in the grammar name. See [getting started](https://tree-sitter.github.io/tree-sitter/creating-parsers/1-getting-started.html) in the tree-sitter manual.
