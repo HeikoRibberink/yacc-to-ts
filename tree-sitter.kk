@@ -325,7 +325,8 @@ fun node/make-nonempty(node : node) : _ node
 
 /* Whole grammar-level optimizations. */
 
-pub fun find-empties(rules : list<rule>) : div list<string>
+// Return the names of the rules that match empty.
+fun find-empties(rules : list<rule>) : div list<string>
   rules.filter-map fn(Rule(name, body))
     val root = body.treesitter
     if root.matches-empty then
@@ -333,6 +334,8 @@ pub fun find-empties(rules : list<rule>) : div list<string>
     else
       Nothing
 
+// Find all empty rules, transform them such that they are non-empty, and make
+// each reference to them optional.
 pub fun transform-empties(rules : list<rule>) : _ list<rule>
   // First, find which rules match empty.
   val prev-empties = find-empties(rules)
@@ -349,6 +352,7 @@ pub fun transform-empties(rules : list<rule>) : _ list<rule>
         n -> n
     Rule(name, TS(empties-replaced))
 
+// Transform rules until no empty rules exist.
 pub fun remove-empties(rules : list<rule>) : _ list<rule>
   var modified := rules
   while {modified.find-empties.is-cons}
