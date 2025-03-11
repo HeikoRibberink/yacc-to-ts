@@ -18,11 +18,20 @@ pub fun list-eq(a : list<a>, b : list<a>, ?(==) : (a, a) -> e bool) : e bool
     _ -> False
 
 // Returns whether `ex` in `xs`.
-pub fbip fun contains(xs : list<a>, ex : a, ^?(==) : (a, a) -> bool) : bool
+pub fbip fun contains(xs : list<a>, ex : a, ^?(==) : (a, a) -> e bool) : e bool
   match xs
-    Cons(x, _) | ex == x -> True
+    Cons(x, _) -> ex == x
     Cons(_, xs) -> xs.contains(ex)
     _ -> False
+
+// Returns a list with all duplicate elements removed.
+pub fun dedup(xs : list<a>, ^?(==) : (a, a) -> e bool) : e list<a>
+  match xs
+    Nil -> Nil
+    Cons(x, xs) -> if xs.contains(x) then
+      xs
+    else
+      Cons(x, xs)
 
 pub effect choice
   ctl choice() : bool

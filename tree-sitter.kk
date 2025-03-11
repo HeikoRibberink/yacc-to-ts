@@ -108,7 +108,7 @@ pub fun rules/show(rules : list<rule>) : _ string
 // Recursively apply all transformations to the tree-sitter representation of body.
 pub fun ts/transform-all(name : string, body : body) : _ body
   val root = body.treesitter
-  val opts = [transform-opt, elim-empty, elim-single-choice, elim-single-seq, elim-empty, flatten-seqseq, transform-repeat1, elim-opt]
+  val opts = [choice-dedup, transform-opt, elim-single-choice, elim-single-seq, elim-empty, flatten-seqseq, transform-repeat1, elim-opt]
   // Sequentially apply the optimizations at every node.
   fun apply-opts(node)
     opts.foldl(node) fn(node', opt)
@@ -139,25 +139,36 @@ fun node/transform-opt(node : node) : div node
       else
         // Else, it should be equal and we can use it
         Choice(filtered)
-    node -> node
+    n -> n
 
+// Remove duplicates inside a Choice.
+fun node/choice-dedup(node : node) : div node
+  match node
+    Choice(nodes) -> Choice(nodes.dedup) 
+    n -> n
+
+// Transform a single choice into its inner node.
 fun node/elim-single-choice(node : node) : node
   match node
-    Choice(Cons(node', Nil)) -> 
-      node'
-    _ -> node
+    Choice([inner]) -> 
+      inner
+    n -> n
 
+// Transform a unit sequence into its inner node.
 fun node/elim-single-seq(node : node) : node
   match node
-    Seq(Cons(node', Nil)) ->
-      node'
-    _ -> node
+    Seq([inner]) ->
+      inner
+    n -> n
 
+// Remove empty nodes from a sequence.
+// NOTE: does nothing after `cfg/without-nullables`.
 fun node/elim-empty(node : node) : div node
   match node
     Seq(nodes) -> Seq(nodes.filter fn(n) {!n.is-empty})
-    _ -> node
+    n -> n
 
+// Flatten a Seq inside another Seq into the outer sequence.
 fun node/flatten-seqseq(node : node) : div node
   match node
     Seq(seq) ->
@@ -166,26 +177,27 @@ fun node/flatten-seqseq(node : node) : div node
           Seq(inner-seq) -> inner-seq
           _ -> [inner-node]
       .concat.Seq
-    _ -> node
+    n -> n
 
+// Transform Seq(a, Repeat(a)) to Repeat1(a)
 fun node/transform-repeat1(node : node) : div node
   match node
-    Seq(Cons(a, Cons(Repeat(b), Nil))) ->
+    Seq([a, Repeat(b)]) ->
       if a == b then
         Repeat1(a)
       else
         node
-    _ -> node
+    n -> n
 
+// If e already matches empty, transforms `Optional(e)` to just `e`.
+// NOTE: does nothing after `cfg/without-nullables`.
 fun node/elim-opt(node : node) : div node
   match node
     Optional(e) -> if e.matches-empty then
         e
       else
         Optional(e)
-    _ -> node
-    
-/* Whole grammar-level optimizations. */
+    n -> n
 
 // Return the names of the rules that match empty.
 pub fun ts/find-empties(rules : list<rule>) : _ list<string>

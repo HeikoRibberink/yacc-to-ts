@@ -19,7 +19,7 @@ pub extend type body
 
 /* Whole-grammar level transformations. */
 
-pub fun cfg/is-nullable(rule : rule, nullable-tokens : list<string>) : bool
+fun cfg/is-nullable(rule : rule, nullable-tokens : list<string>) : bool
   match rule.body
     Cfg(variants) -> variants.contains([]) ||
       variants.find fn(variant)
@@ -30,7 +30,7 @@ pub fun cfg/is-nullable(rule : rule, nullable-tokens : list<string>) : bool
       .is-just
     _ -> False
 
-pub fun cfg/nullables(rules : list<rule>) : div list<string>
+fun cfg/nullables(rules : list<rule>) : div list<string>
   var remaining := rules
   var nullables := []
   with early-exit
