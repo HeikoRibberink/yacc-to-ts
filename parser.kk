@@ -6,12 +6,12 @@
   file at the root of this distribution.
 ------------------------------------------------------------------------------*/
 
-/* Yacc context-free grammar parser and tree-sitter generater. */
+/* This module provides a parser for Yacc grammars. */
 module parser
 
 import std/text/parse
 import std/core/undiv
-import tree-sitter
+import repr
 
 /* Additional parser combinators */
 

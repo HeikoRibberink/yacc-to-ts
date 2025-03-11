@@ -6,71 +6,15 @@
   file at the root of this distribution.
 ------------------------------------------------------------------------------*/
 
-/* This module contains code intended for representing a Yacc CFG, and for
-* optimizing and converting it to a valid Tree-sitter grammar. */
+/* This module provides functions and types to convert to and transform
+* tree-sitter grammars. */
 
 module tree-sitter
 
-import std/core/undiv
 import exit
-
-// Same as `list/(==)`, but allows arbitrary effects for the `(==)` function.
-// Necessary because `node/(==)` has the `div` effect. 
-fun list-eq(a : list<a>, b : list<a>, ?(==) : (a, a) -> e bool) : e bool
-  match (a, b)
-    (Nil, Nil) -> True
-    (Cons(x, xs), Cons(y, ys)) -> (x == y) && list-eq(pretend-decreasing(xs), pretend-decreasing(ys))
-    _ -> False
-
-// Returns whether `ex` in `xs`.
-fbip fun contains(xs : list<a>, ex : a, ^?(==) : (a, a) -> bool) : bool
-  match xs
-    Cons(x, _) | ex == x -> True
-    Cons(_, xs) -> xs.contains(ex)
-    _ -> False
-
-// Production rule with an arbitrary body.
-pub value struct rule
-  name : string
-  body : body
-
-// Converts a rule to a tree-sitter string.
-pub fun rule/show(rule : rule) : div string
-  val Rule(name, body) = rule
-  name ++ ": ($) => " ++ treesitter(body).show() ++ ","
-
-// Converts a list of rules to a tree-sitter string. 
-pub fun rules/show(rules : list<rule>) : div string
-  rules.map(rule/show).join-end("\n")
-  
-
-// Different kinds of rule bodies.
-// This is used to present a unified type for CFG and TS representations, but
-// also for simplified, intermediate representations of either variant.
-pub type body
-  Cfg(variants : list<list<token>>)
-  LeftRec(start-variants : list<list<token>>, repeat-variants : list<list<token>>)
-  RightRec(repeat-variants: list<list<token>>, end-variants: list<list<token>>)
-  TS(node : node)
-
-// A terminal or nonterminal.
-pub value type token
-  // A named terminal or nonterminal token.
-  Name(name : string)
-  // A raw terminal token.
-  Raw(str : string)
-
-// Converts a token to a tree-sitter string.
-pub fun token/show(token : token) : string
-  match token
-    Name(name) -> "$." ++ name
-    Raw(str) -> "\'" ++ str ++ "\'" 
-
-pub fun token/(==)(a : token, b : token) : bool
-  match (a, b)
-    (Name(n1), Name(n2)) -> n1 == n2
-    (Raw(n1), Raw(n2)) -> n1 == n2
-    _ -> False
+import repr
+import cfg
+import util
 
 // A node in a tree-sitter AST.
 // All the names except Token are analogous to their tree-sitter counterpart.
@@ -87,24 +31,6 @@ pub type node
   Repeat1(node : node)
   // A choice between nodes.
   Choice(nodes : list<node>)
-
-// Convert a body to a tree-sitter node.
-pub fun body/treesitter(body : body) : node
-  // Depending on the type of body, we apply a different transformation.
-  match body
-    Cfg(variants) ->
-      // The right side of a CFG production rule becomes a choice of sequences.
-      Choice(variants.map fn(v) {Seq(v.map(Token))})
-    LeftRec(starts, repeats) ->
-      val starts-tokens = starts.map(fn(s) {Seq(s.map(Token))})
-      val repeats-tokens = repeats.map(fn(s) {Seq(s.map(Token))})
-      Seq([Choice(starts-tokens), Repeat(Choice(repeats-tokens))])
-    RightRec(repeats, ends) ->
-      val repeats-tokens = repeats.map(fn(s) {Seq(s.map(Token))})
-      val ends-tokens = ends.map(fn(s) {Seq(s.map(Token))})
-      Seq([Repeat(Choice(repeats-tokens)), Choice(ends-tokens)])
-    TS(node) -> node
-  
   
 // Convert a tree-sitter node to a tree-sitter string.
 pub fun node/show(node : node) : div string
@@ -150,127 +76,34 @@ pub fun node/matches-empty(node : node) : div bool
     Repeat1(node) -> node.matches-empty
     Choice(nodes) -> nodes.find(matches-empty).is-just
 
-/* Rule-level optimizations and transformations. */
+pub extend type body
+  TS(node : node)
 
-// Optimize a list of rules.
-pub fun optimize(rules : list<rule>) : _ list<rule>
-  // The optimizations. Note that we apply the tree-sitter transformations twice.
-  val opts = [transform-leftrec, transform-rightrec, ts/transform-all, ts/transform-all]
-  // We optimize rule by rule.
-  rules.map fn(rule)
-    // Optimize by sequentially applying each optimization.
-    opts.foldl(rule) fn(rule', opt)
-      // When an optimization is not applicable, return the unmodified rule.
-      with final ctl exit(_) 
-        rule'
-      val optimized = opt(rule'.name, rule'.body)
-      val new-rule = rule'(body = optimized)
-      new-rule
-
-fun cfg/is-nullable(rule : rule, nullable-tokens : list<string>) : bool
-  match rule.body
-    Cfg(variants) -> variants.contains([]) ||
-      variants.find fn(variant)
-        variant.all fn(token)
-          match token
-            Raw -> False
-            Name(tname) -> nullable-tokens.contains(tname)
-      .is-just
-    _ -> False
-
-pub fun cfg/nullables(rules : list<rule>) : div list<string>
-  var remaining := rules
-  var nullables := []
-  with early-exit
-  while {True}
-    val (new-nullables, remaining') = remaining.partition fn(rule)
-      rule.is-nullable(nullables)
-    remaining := remaining'
-    nullables := new-nullables.map(name) ++ nullables
-    if new-nullables.is-nil then
-      exit(nullables)
-  []
-
-effect choice
-  ctl choice() : bool
-
-fun choice-all(action)
-  with handler
-    ctl choice() resume(False) ++ resume(True)
-    return(x) [x]
-  action()
-
-pub fun cfg/without-nullables(rules : list<rule>) : pure list<rule>
-  // Find the nullable variables.
-  val nullables = rules.nullables
-
-  rules.filter-map fn(Rule(name, body))
-    val updated-variants = match body
-      // Only works on CFG's, and throws an exception otherwise.
-      Cfg(variants) ->
-        variants.map fn(variant)
-          // For each variant, we add every production obtained by removing one
-          // or more nullable tokens.
-          with choice-all
-          variant.filter-map fn(token)
-            match token
-              Name(tname) | nullables.contains(tname) ->
-                // We let choice decide if we add it, such that `choice-all`
-                // can iterate every option.
-                if choice() then
-                  Just(Name(tname))
-                else
-                  Nothing
-              _ -> Just(token)
-        .concat
-    val variants' = updated-variants.filter fn(variant)
-      // We remove all empty variants, and all self-producing unit variants.
-      match variant
-        [] -> False
-        [Name(tname)] | name == tname -> False
-        _ -> True
-    if variants'.is-empty then
-      Nothing
-    else
-      Just(Rule(name, Cfg(variants')))
-      
-// Transform a left recursive cfg. 
-pub fun cfg/transform-leftrec(name : string, body : body) : _ body
-  // Only Cfg can be transformed; all others are not applicable.
+// Convert a body to a tree-sitter node.
+pub fun body/treesitter(body : body) : _ node
+  // Depending on the type of body, we apply a different transformation.
   match body
     Cfg(variants) ->
-      // Categorize the rules:
-      val categorized = variants.map fn(v)
-        match v
-          // Recursive rules have their self-reference removed, and are put right.
-          Cons(first, tail) | first == Name(name) -> (Nothing, Just(tail))
-          // Non-recursive rules are put left.
-          _ -> (Just(v), Nothing)
-      // Due to the (maybe, maybe)-tuple, we can simply unzip and concat-maybe.
-      val (nonrecs, recs) = categorized.unzip.map(concat-maybe)
-      if is-nil(recs) then exit(())
-      LeftRec(nonrecs, recs)
-    _ -> exit(())
+      // The right side of a CFG production rule becomes a choice of sequences.
+      Choice(variants.map fn(v) {Seq(v.map(Token))})
+    LeftRec(starts, repeats) ->
+      val starts-tokens = starts.map(fn(s) {Seq(s.map(Token))})
+      val repeats-tokens = repeats.map(fn(s) {Seq(s.map(Token))})
+      Seq([Choice(starts-tokens), Repeat(Choice(repeats-tokens))])
+    RightRec(repeats, ends) ->
+      val repeats-tokens = repeats.map(fn(s) {Seq(s.map(Token))})
+      val ends-tokens = ends.map(fn(s) {Seq(s.map(Token))})
+      Seq([Repeat(Choice(repeats-tokens)), Choice(ends-tokens)])
+    TS(node) -> node
 
-// Transform a right recursive cfg. 
-pub fun cfg/transform-rightrec(name : string, body : body) : _ body
-  // Only Cfg can be transformed; all others are not applicable.
-  match body
-    Cfg(variants) ->
-      // Categorize the rules:
-      val categorized = variants.map fn(v)
-        match v.split(length(v) - 1)
-          // Recursive rules have their self-reference removed, and are put right.
-          (front, Cons(last, Nil)) | last == Name(name) -> (Nothing, Just(front))
-          // Non-recursive rules are put left.
-          _ -> (Just(v), Nothing)
-      // Due to the (maybe, maybe)-tuple, we can simply unzip and concat-maybe.
-      val (nonrecs, recs) = categorized.unzip.map(concat-maybe)
-      if is-nil(recs) then exit(())
-      RightRec(recs, nonrecs)
-    _ -> exit(())
+// Show a rule by converting it to a tree-sitter string.
+pub fun rule/show(rule : rule) : _ string
+  val Rule(name, body) = rule
+  name ++ ": ($) => " ++ treesitter(body).show() ++ ","
 
-/* Tree-sitter node-level optimizations and transformation. */
+// Converts a list of rules to a tree-sitter string. 
+pub fun rules/show(rules : list<rule>) : _ string
+  rules.map(rule/show).join-end("\n")
 
 // Recursively apply all transformations to the tree-sitter representation of body.
 pub fun ts/transform-all(name : string, body : body) : _ body
@@ -355,7 +188,7 @@ fun node/elim-opt(node : node) : div node
 /* Whole grammar-level optimizations. */
 
 // Return the names of the rules that match empty.
-pub fun ts/find-empties(rules : list<rule>) : div list<string>
+pub fun ts/find-empties(rules : list<rule>) : _ list<string>
   rules.filter-map fn(Rule(name, body))
     val root = body.treesitter
     if root.matches-empty then

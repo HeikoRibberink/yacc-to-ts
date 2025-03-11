@@ -13,6 +13,7 @@ import std/os/file
 import std/os/path
 import std/text/parse
 import parser
+import cfg
 import tree-sitter
 import cli
 
@@ -88,10 +89,9 @@ fun main()
   // Parse the file.
   val parsed = trimmed.parse-rules.unjust
   val improved = if args.options.improve then
-    val opt = parsed.without-nullables.optimize
-    if opt.find-empties.is-cons then
-      println("Something went wrong")
-      println(opt.find-empties)
+    val opt = parsed
+      .without-nullables
+      .optimize([cfg/transform-leftrec, cfg/transform-rightrec, ts/transform-all])
     opt
   else
     parsed
