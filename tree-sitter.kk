@@ -167,6 +167,73 @@ pub fun optimize(rules : list<rule>) : _ list<rule>
       val new-rule = rule'(body = optimized)
       new-rule
 
+fun cfg/is-nullable(rule : rule, nullable-tokens : list<string>) : bool
+  match rule.body
+    Cfg(variants) -> variants.contains([]) ||
+      variants.find fn(variant)
+        variant.all fn(token)
+          match token
+            Raw -> False
+            Name(tname) -> nullable-tokens.contains(tname)
+      .is-just
+    _ -> False
+
+pub fun cfg/nullables(rules : list<rule>) : div list<string>
+  var remaining := rules
+  var nullables := []
+  with early-exit
+  while {True}
+    val (new-nullables, remaining') = remaining.partition fn(rule)
+      rule.is-nullable(nullables)
+    remaining := remaining'
+    nullables := new-nullables.map(name) ++ nullables
+    if new-nullables.is-nil then
+      exit(nullables)
+  []
+
+effect choice
+  ctl choice() : bool
+
+fun choice-all(action)
+  with handler
+    ctl choice() resume(False) ++ resume(True)
+    return(x) [x]
+  action()
+
+pub fun cfg/without-nullables(rules : list<rule>) : pure list<rule>
+  // Find the nullable variables.
+  val nullables = rules.nullables
+
+  rules.filter-map fn(Rule(name, body))
+    val updated-variants = match body
+      // Only works on CFG's, and throws an exception otherwise.
+      Cfg(variants) ->
+        variants.map fn(variant)
+          // For each variant, we add every production obtained by removing one
+          // or more nullable tokens.
+          with choice-all
+          variant.filter-map fn(token)
+            match token
+              Name(tname) | nullables.contains(tname) ->
+                // We let choice decide if we add it, such that `choice-all`
+                // can iterate every option.
+                if choice() then
+                  Just(Name(tname))
+                else
+                  Nothing
+              _ -> Just(token)
+        .concat
+    val variants' = updated-variants.filter fn(variant)
+      // We remove all empty variants, and all self-producing unit variants.
+      match variant
+        [] -> False
+        [Name(tname)] | name == tname -> False
+        _ -> True
+    if variants'.is-empty then
+      Nothing
+    else
+      Just(Rule(name, Cfg(variants')))
+      
 // Transform a left recursive cfg. 
 pub fun cfg/transform-leftrec(name : string, body : body) : _ body
   // Only Cfg can be transformed; all others are not applicable.
@@ -285,76 +352,13 @@ fun node/elim-opt(node : node) : div node
         Optional(e)
     _ -> node
     
-
-// Transforms `node` such that it does not match empty. More specifically:
-// Let `n` be an arbitrary node, then
-// 1. `make-nonempty(n)` does not match empty, and
-// 2. if `n` does not match empty, then 
-//      `make-nonempty(n) == n`, 
-//    else 
-//      `n` matches empty, and `Optional(make-nonempty(n)) == n`
-fun node/make-nonempty(node : node) : _ node
-  // Notes:
-  // Let a == b mean that a and b match exactly the same language.
-  // Let n be a node that matches empty.
-  // We wish to define a function f such that:
-  // f(n) does not match empty, and
-  // Optional(f(n)) == n
-  
-  // Let n, n1, ..., nk, ..., nl be arbitrary nodes, and,
-  // Let e, e1, ..., ek, ..., el be arbitrary nodes that match empty, and,
-  // Let m, m1, ..., mk, ..., ml be arbitrary nodes that do not match empty.
-  // We can define f as follows:
-  // 1. f(m) == m
-  // Rule 1 catches all cases except:
-  // 2. f(Seq(e1, e2, ..., ek)) == Seq(f(e1), e2, ..., ek)
-  // 3. f(Optional(n)) == f(n)
-  // 4. f(Repeat(n)) == Repeat1(f(n))
-  // 5. f(Repeat1(e)) == Repeat1(f(e))
-  // 6. f(Choice(n1, ..., nk)) == Choice(f(n1), ..., f(nk))
-  if !node.matches-empty then
-    node // Rule 1
-  else match node
-    // Rule 2; `nodes` must be nonempty, and every element must match empty.
-    Seq(Cons(e, es)) -> Seq(Cons(make-nonempty(e), es))
-    Optional(n) -> make-nonempty(n)
-    Repeat(n) -> Repeat1(make-nonempty(n))
-    Repeat1(e) -> Repeat1(make-nonempty(e))
-    Choice(choices) -> Choice(choices.map(make-nonempty))
-    _ -> throw("This should be impossible due to the previous if statement.")
-
 /* Whole grammar-level optimizations. */
 
 // Return the names of the rules that match empty.
-fun find-empties(rules : list<rule>) : div list<string>
+pub fun ts/find-empties(rules : list<rule>) : div list<string>
   rules.filter-map fn(Rule(name, body))
     val root = body.treesitter
     if root.matches-empty then
       Just(name)
     else
       Nothing
-
-// Find all empty rules, transform them such that they are non-empty, and make
-// each reference to them optional.
-pub fun transform-empties(rules : list<rule>) : _ list<rule>
-  // First, find which rules match empty.
-  val prev-empties = find-empties(rules)
-  // Then, we transform every token referencing an empty rule to Optional(token)
-  rules.map fn(Rule(name, body))
-    val root = body.treesitter.make-nonempty
-    val empties-replaced = root.map-bottom-up fn(node)
-      match node
-        tok as Token(Name(refname)) ->
-          if prev-empties.contains(refname) then
-            Optional(Token(Name(refname)))
-          else
-            tok
-        n -> n
-    Rule(name, TS(empties-replaced))
-
-// Transform rules until no empty rules exist.
-pub fun remove-empties(rules : list<rule>) : _ list<rule>
-  var modified := rules
-  while {modified.find-empties.is-cons}
-    modified := modified.transform-empties
-  modified
