@@ -91,7 +91,11 @@ fun main()
   val improved = if args.options.improve then
     val opt = parsed
       .without-nullables
-      .optimize([cfg/transform-leftrec, cfg/transform-rightrec, ts/transform-all])
+      .optimize([
+        cfg/transform-leftrec,
+        cfg/transform-rightrec,
+        ts/transform-all
+      ])
     opt
   else
     parsed

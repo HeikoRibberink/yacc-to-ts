@@ -43,7 +43,7 @@ fun cfg/nullables(rules : list<rule>) : div list<string>
       exit(nullables)
   []
 
-pub fun cfg/without-nullables(rules : list<rule>) : pure list<rule>
+pub fun cfg/without-nullables(rules : list<rule>) : _ list<rule>
   // Find the nullable variables.
   val nullables : list<string> = rules.nullables
 
