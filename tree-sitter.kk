@@ -199,11 +199,6 @@ fun node/elim-opt(node : node) : div node
         Optional(e)
     n -> n
 
-//fun node/flatten-repeat-choice(node : node)
-//  match node
-//    Seq([Repeat()])
-//    n -> n
-
 // Return the names of the rules that match empty.
 pub fun ts/find-empties(rules : list<rule>) : _ list<string>
   rules.filter-map fn(Rule(name, body))
