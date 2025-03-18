@@ -1,12 +1,15 @@
 Code
 %%
-eimports    : IMPORT_EXTERN externimpbody semis1 eimports
-            | declarations
-            ;
-declarations: fixitydecl semis1 declarations
-            | topdecls
-            ;
-topdecls    : topdecls1
-            | /* empty */
-            ;
+a : a n f n
+  | n f g
+  ;
+n : n 'null'
+  |
+  ;
+f : f g
+  |
+  ;
+g : g 'g'
+  | 'g'
+  ;
 %%

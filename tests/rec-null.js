@@ -1,3 +1,4 @@
-eimports: ($) => seq(repeat(seq($.IMPORT_EXTERN,$.externimpbody,$.semis1,)),choice(seq($.IMPORT_EXTERN,$.externimpbody,$.semis1,),$.declarations,),),
-declarations: ($) => seq(repeat(seq($.fixitydecl,$.semis1,)),choice(seq($.fixitydecl,$.semis1,),$.topdecls,),),
-topdecls: ($) => $.topdecls1,
+a: ($) => seq(choice($.g,seq($.f,$.g,),seq($.n,$.g,),seq($.n,$.f,$.g,),),repeat(choice($.f,seq($.f,$.n,),$.n,seq($.n,$.n,),seq($.n,$.f,),seq($.n,$.f,$.n,),)),),
+n: ($) => repeat1('null'),
+f: ($) => repeat1($.g),
+g: ($) => repeat1('g'),
