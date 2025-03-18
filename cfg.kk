@@ -19,14 +19,14 @@ pub extend type body
 
 /* Whole-grammar level transformations. */
 
-fun cfg/is-nullable(rule : rule, nullable-tokens : list<string>) : bool
+fun cfg/is-nullable(rule : rule, tokens : list<string>) : bool
   match rule.body
     Cfg(variants) -> variants.contains([]) ||
       variants.find fn(variant)
         variant.all fn(token)
           match token
             Raw -> False
-            Name(tname) -> nullable-tokens.contains(tname)
+            Name(tname) -> tokens.contains(tname)
       .is-just
     _ -> False
 
