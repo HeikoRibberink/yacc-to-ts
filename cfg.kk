@@ -30,7 +30,7 @@ fun cfg/is-nullable(rule : rule, tokens : list<string>) : bool
       .is-just
     _ -> False
 
-fun cfg/nullables(rules : list<rule>) : div list<string>
+pub fun cfg/nullables(rules : list<rule>) : div list<string>
   var remaining := rules
   var nullables := []
   with early-exit

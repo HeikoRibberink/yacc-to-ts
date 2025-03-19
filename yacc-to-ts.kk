@@ -88,9 +88,9 @@ fun main()
   val trimmed = grammar.trim-grammar
   // Parse the file.
   val parsed = trimmed.parse-rules.unjust
+  with val implicit-nullables = parsed.nullables
   val improved = if args.options.improve then
     val opt = parsed
-      .without-nullables
       .optimize([
         cfg/transform-leftrec,
         cfg/transform-rightrec,

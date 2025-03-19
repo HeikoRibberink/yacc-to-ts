@@ -79,27 +79,64 @@ pub fun node/matches-empty(node : node) : div bool
 pub extend type body
   TS(node : node)
 
+fun variant/completely-nullable(variant : list<token>, nullables : list<string>) : bool
+  variant.all fn(v)
+    match v
+      Name(t) -> nullables.contains(t)
+      Raw -> False
+
+fun variant/treesitter(variant : list<token>)
+  val nullables = implicit-nullables
+  if variant.completely-nullable(nullables) then
+    variant.map-indexed fn(i, token)
+      val (left, Cons(cur, right)) = variant.list/split(i)
+      Seq(left.map(Optional.o(Token)) ++ [Token(cur)] ++ right.map(Optional.o(Token)))
+  else
+    [Seq(
+      variant.map fn(token)
+        match token
+          t as Name(tname) | nullables.contains(tname) ->
+            Optional(Token(t))
+          t -> Token(t)
+    )]
+
+fun variants/treesitter(variants : list<list<token>>) : _ node
+  Choice(
+    variants.map fn(variant)
+      variant.variant/treesitter
+    .concat
+  )
+
+pub effect val implicit-nullables : list<string>
+
 // Convert a body to a tree-sitter node.
-pub fun body/treesitter(body : body) : _ node
+pub fun body/treesitter(rule : rule) : _ node
   // Depending on the type of body, we apply a different transformation.
-  match body
+  match rule.body
     Cfg(variants) ->
       // The right side of a CFG production rule becomes a choice of sequences.
-      Choice(variants.map fn(v) {Seq(v.map(Token))})
+      variants.variants/treesitter
     LeftRec(starts, repeats) ->
-      val starts-tokens = starts.map(fn(s) {Seq(s.map(Token))})
-      val repeats-tokens = repeats.map(fn(s) {Seq(s.map(Token))})
-      Seq([Choice(starts-tokens), Repeat(Choice(repeats-tokens))])
+      // Whenever the rule is completely nullable, we must add all variants
+      // obtained by removing the rule.
+      val starts-choice = if implicit-nullables.contains(rule.name) then
+        (starts ++ repeats).treesitter
+      else
+        starts.treesitter
+      val repeats-choice = repeats.treesitter
+      Seq([starts-choice, Repeat(repeats-choice)])
     RightRec(repeats, ends) ->
-      val repeats-tokens = repeats.map(fn(s) {Seq(s.map(Token))})
-      val ends-tokens = ends.map(fn(s) {Seq(s.map(Token))})
-      Seq([Repeat(Choice(repeats-tokens)), Choice(ends-tokens)])
+      val repeats-choice = repeats.treesitter
+      val ends-choice = if implicit-nullables.contains(rule.name) then
+        (ends ++ repeats).treesitter
+      else
+        ends.treesitter
+      Seq([Repeat(repeats-choice), ends-choice])
     TS(node) -> node
 
 // Show a rule by converting it to a tree-sitter string.
 pub fun rule/show(rule : rule) : _ string
-  val Rule(name, body) = rule
-  name ++ ": ($) => " ++ treesitter(body).show() ++ ","
+  rule.name ++ ": ($) => " ++ rule.treesitter.show() ++ ","
 
 // Converts a list of rules to a tree-sitter string. 
 pub fun rules/show(rules : list<rule>) : _ string
@@ -107,8 +144,10 @@ pub fun rules/show(rules : list<rule>) : _ string
 
 // Recursively apply all transformations to the tree-sitter representation of body.
 pub fun ts/transform-all(name : string, body : body) : _ body
-  val root = body.treesitter
-  val opts = [choice-dedup, transform-opt, elim-single-choice, elim-single-seq, elim-empty, flatten-seqseq, transform-repeat1, elim-opt]
+  val root = Rule(name, body).treesitter
+  val opts = [
+    choice-dedup, elim-empty, transform-opt, elim-single-choice, elim-single-seq, flatten-seqseq, transform-repeat1, elim-opt
+  ]
   // Sequentially apply the optimizations at every node.
   fun apply-opts(node)
     opts.foldl(node) fn(node', opt)
@@ -199,11 +238,12 @@ fun node/elim-opt(node : node) : div node
         Optional(e)
     n -> n
 
+
 // Return the names of the rules that match empty.
 pub fun ts/find-empties(rules : list<rule>) : _ list<string>
-  rules.filter-map fn(Rule(name, body))
-    val root = body.treesitter
+  rules.filter-map fn(rule)
+    val root = rule.treesitter
     if root.matches-empty then
-      Just(name)
+      Just(rule.name)
     else
       Nothing
