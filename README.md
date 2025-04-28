@@ -70,7 +70,7 @@ For examples of these improvements, see the `tests` folder.
 2. Run `make build` in the project root, or execute `koka -o yacc-to-ts yacc-to-ts.kk`.
 
 # Troubleshooting
-- `Segmentation fault (core dumped)` This is probably a stack overflow exception, and occurs when you have a very large Yacc grammar. You can rebuild the program with a larger stack by passing `--stack=<stack size>` to Koka, for example `koka --stack=1G -o yacc-to-ts yacc-to-ts.kk`.
+- `Segmentation fault (core dumped)` This is probably a stack overflow exception, and occurs when you have a very large Yacc grammar. You can rebuild the program with a larger stack by passing `--stack=<stack size>` to Koka, for example `koka --stack=1G -o yacc-to-ts yacc-to-ts.kk`. It is related to [this Koka issue](https://github.com/koka-lang/koka/issues/679)
 
 If you encounter any other problems, please create an issue on GitHub.
 
