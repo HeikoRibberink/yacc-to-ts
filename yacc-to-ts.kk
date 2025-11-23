@@ -99,6 +99,6 @@ fun main()
     opt
   else
     parsed
-  val textrules = improved.show()
+  val textrules = improved.rules/show()
   // Convert and write the tree-sitter grammar.
   args.output.write-text-file(textrules)
