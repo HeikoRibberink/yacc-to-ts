@@ -1,12 +1,12 @@
 ex = yacc-to-ts
-srcs != find -iname "*.kk"
+srcs != find . -iname "*.kk"
 in = #Input files
 flags =
-tests != find tests/ -iname "*.y"
+tests != find . tests/ -iname "*.y"
 
 .PHONY: watch
 watch:
-	find -iname "*.kk" | entr make run
+	find . -iname "*.kk" | entr make run
 
 .PHONY: build
 build: $(ex)
